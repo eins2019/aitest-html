@@ -1,169 +1,45 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html>
 <head>
+    <title>電卓</title>
+    <link rel="stylesheet" type="text/css" href="./calculator.css">
     <meta charset="UTF-8">
-    <title>シンプルなピンポンゲーム</title>
-    <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-        }
-        canvas {
-            background: #000;
-            border: 2px solid #333;
-        }
-        .game-container {
-            text-align: center;
-        }
-        h1 {
-            color: #333;
-        }
-        p {
-            margin: 10px 0;
-        }
-    </style>
 </head>
 <body>
-    <div class="game-container">
-        <h1>ピンポンゲーム</h1>
-        <canvas id="gameCanvas" width="600" height="400"></canvas>
-        <p>操作方法: 左右の矢印キーでパドルを動かします</p>
-        <p>スコア: <span id="score">0</span></p>
-    </div>
+    <div class="calculator">
+        <input type="text" class="display" disabled>
+        <div class="buttons">
+            <!-- 1行目 -->
+            <button style="grid-area: seven;">7</button>
+            <button style="grid-area: eight;">8</button>
+            <button style="grid-area: nine;">9</button>
+            <button class="operator" style="grid-area: divide;">÷</button>
 
-    <script>
-        // キャンバスと2Dコンテキストの取得
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
-        
-        // ゲーム設定
-        let score = 0;
-        
-        // パドルの設定
-        const paddleWidth = 100;
-        const paddleHeight = 10;
-        let paddleX = (canvas.width - paddleWidth) / 2;
-        const paddleY = canvas.height - 30;
-        
-        // ボールの設定
-        const ballRadius = 10;
-        let ballX = canvas.width / 2;
-        let ballY = canvas.height / 2;
-        let ballSpeedX = 4;
-        let ballSpeedY = -4;
-        
-        // キー操作の設定
-        let rightPressed = false;
-        let leftPressed = false;
-        
-        // キーイベントリスナー
-        document.addEventListener('keydown', keyDownHandler);
-        document.addEventListener('keyup', keyUpHandler);
-        
-        function keyDownHandler(e) {
-            if (e.key === 'Right' || e.key === 'ArrowRight') {
-                rightPressed = true;
-            } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-                leftPressed = true;
-            }
-        }
-        
-        function keyUpHandler(e) {
-            if (e.key === 'Right' || e.key === 'ArrowRight') {
-                rightPressed = false;
-            } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
-                leftPressed = false;
-            }
-        }
-        
-        // ボールの描画
-        function drawBall() {
-            ctx.beginPath();
-            ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#FFF';
-            ctx.fill();
-            ctx.closePath();
-        }
-        
-        // パドルの描画
-        function drawPaddle() {
-            ctx.beginPath();
-            ctx.rect(paddleX, paddleY, paddleWidth, paddleHeight);
-            ctx.fillStyle = '#0095DD';
-            ctx.fill();
-            ctx.closePath();
-        }
-        
-        // 衝突検知
-        function detectCollision() {
-            // 壁との衝突
-            if (ballX + ballSpeedX > canvas.width - ballRadius || ballX + ballSpeedX < ballRadius) {
-                ballSpeedX = -ballSpeedX;
-            }
-            
-            // 天井との衝突
-            if (ballY + ballSpeedY < ballRadius) {
-                ballSpeedY = -ballSpeedY;
-            }
-            
-            // パドルとの衝突
-            if (ballY + ballSpeedY > paddleY - ballRadius) {
-                if (ballX > paddleX && ballX < paddleX + paddleWidth) {
-                    ballSpeedY = -ballSpeedY;
-                    score++;
-                    scoreElement.textContent = score;
-                    
-                    // ボールが当たった位置によって反射角度を変える
-                    const hitPosition = (ballX - paddleX) / paddleWidth;
-                    ballSpeedX = 8 * (hitPosition - 0.5);
-                } else if (ballY + ballSpeedY > canvas.height - ballRadius) {
-                    // ゲームオーバー
-                    alert('ゲームオーバー！最終スコア: ' + score);
-                    document.location.reload();
-                }
-            }
-        }
-        
-        // パドルの移動
-        function movePaddle() {
-            if (rightPressed && paddleX < canvas.width - paddleWidth) {
-                paddleX += 7;
-            } else if (leftPressed && paddleX > 0) {
-                paddleX -= 7;
-            }
-        }
-        
-        // 描画処理
-        function draw() {
-            // キャンバスのクリア
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 描画
-            drawBall();
-            drawPaddle();
-            
-            // 衝突検知
-            detectCollision();
-            
-            // パドルの移動
-            movePaddle();
-            
-            // ボールの移動
-            ballX += ballSpeedX;
-            ballY += ballSpeedY;
-            
-            // アニメーションフレームの要求
-            requestAnimationFrame(draw);
-        }
-        
-        // ゲームスタート
-        draw();
-    </script>
+            <!-- 2行目 -->
+            <button style="grid-area: four;">4</button>
+            <button style="grid-area: five;">5</button>
+            <button style="grid-area: six;">6</button>
+            <button class="operator" style="grid-area: multiply;">×</button>
+
+            <!-- 3行目 -->
+            <button style="grid-area: one;">1</button>
+            <button style="grid-area: two;">2</button>
+            <button style="grid-area: three;">3</button>
+            <button class="operator" style="grid-area: subtract;">-</button>
+
+            <!-- 4行目 -->
+            <button style="grid-area: zero;">0</button>
+            <button style="grid-area: dot;">.</button>
+            <button class="delete" style="grid-area: del;">←</button>
+            <button class="operator" style="grid-area: add;">+</button>
+
+            <!-- 5行目：空セル×2 と 「=」と「C」ボタン -->
+            <div style="grid-area: empty1;"></div>
+            <div style="grid-area: empty2;"></div>
+            <button class="operator" style="grid-area: equal;">=</button>
+            <button class="operator" style="grid-area: clear;">C</button>
+        </div>
+    </div>
+    <script src="calculator.js"></script>
 </body>
 </html>

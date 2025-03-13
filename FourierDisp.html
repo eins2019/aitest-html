@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fourier級数展開による波形合成シミュレーション</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        .canvas-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 1px solid black;
+            width: 600px; /* 横幅を同一に設定 */
+            height: 300px; /* 高さを同一に設定 */
+            max-width: 600px; /* 幅を固定 */
+            max-height: 300px; /* 高さを固定 */
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <h1>Fourier級数展開による波形合成シミュレーション</h1>
+    <div class="controls">
+        <label>
+            <input type="radio" name="waveform" value="square" checked> 方形波
+        </label>
+        <label>
+            <input type="radio" name="waveform" value="triangle"> 三角波
+        </label>
+        <label>
+            <input type="radio" name="waveform" value="sawtooth"> 鋸波
+        </label>
+        <br>
+        <label for="harmonics">高調波の数: <span id="harmonics-count">1</span></label>
+        <input type="range" id="harmonics" min="1" max="20" value="1">
+    </div>
+    <div id="formula"></div>
+    <div class="canvas-container">
+        <div class="canvas-wrapper">
+            <h2>合成波形</h2>
+            <canvas id="waveformCanvas" width="600" height="300"></canvas>
+        </div>
+        <div class="canvas-wrapper">
+            <h2>スペクトラム</h2>
+            <canvas id="spectrumCanvas" width="600" height="300"></canvas>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const waveformCanvas = document.getElementById('waveformCanvas');
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const ctxWaveform = waveformCanvas.getContext('2d');
+        const harmonicsSlider = document.getElementById('harmonics');
+        const harmonicsCount = document.getElementById('harmonics-count');
+        const formulaDiv = document.getElementById('formula');
+        let waveformType = 'square';
+        let spectrumChart;
+
+        document.querySelectorAll('input[name="waveform"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                waveformType = e.target.value;
+                drawWaveform();
+            });
+        });
+
+        harmonicsSlider.addEventListener('input', () => {
+            harmonicsCount.textContent = harmonicsSlider.value;
+            drawWaveform();
+        });
+
+        function drawWaveform() {
+            const harmonics = parseInt(harmonicsSlider.value);
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            const period = 2 * Math.PI;
+            const step = period / width;
+            let formula = '';
+
+            ctxWaveform.clearRect(0, 0, width, height);
+            drawZeroLine();
+            ctxWaveform.beginPath();
+            ctxWaveform.moveTo(0, height / 2);
+
+            for (let x = 0; x < width; x++) {
+                let t = x * step;
+                let y = 0;
+
+                if (waveformType === 'square') {
+                    formula = 'f(t) = \\frac{4}{\\pi} \\left[ ';
+                    for (let n = 1; n <= harmonics; n += 2) {
+                        y += (4 / Math.PI) * Math.sin(n * t) / n;
+                        formula += `\\frac{\\sin(${n}t)}{${n}} + `;
+                    }
+                } else if (waveformType === 'triangle') {
+                    formula = 'f(t) = \\frac{8}{\\pi^2} \\left[ ';
+                    for (let n = 1; n <= harmonics; n += 2) {
+                        y += (8 / Math.pow(Math.PI, 2)) * Math.pow(-1, (n - 1) / 2) * Math.sin(n * t) / Math.pow(n, 2);
+                        formula += `(-1)^{${(n - 1) / 2}} \\frac{\\sin(${n}t)}{${n}^2} + `;
+                    }
+                } else if (waveformType === 'sawtooth') {
+                    formula = 'f(t) = \\frac{2}{\\pi} \\left[ ';
+                    for (let n = 1; n <= harmonics; n++) {
+                        y += (2 / Math.PI) * Math.pow(-1, n + 1) * Math.sin(n * t) / n;
+                        formula += `(-1)^{${n + 1}} \\frac{\\sin(${n}t)}{${n}} + `;
+                    }
+                }
+
+                ctxWaveform.lineTo(x, height / 2 - y * (height / 4));
+            }
+
+            formula = formula.slice(0, -3) + ' \\right]';
+            formulaDiv.innerHTML = `\\[${formula}\\]`;
+            MathJax.typeset();
+
+            ctxWaveform.strokeStyle = 'blue';
+            ctxWaveform.lineWidth = 2;
+            ctxWaveform.stroke();
+
+            drawOriginalSineWave();
+            drawHarmonics(harmonics);
+            drawSpectrum(harmonics);
+        }
+
+        function drawZeroLine() {
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+
+            ctxWaveform.beginPath();
+            ctxWaveform.moveTo(0, height / 2);
+            ctxWaveform.lineTo(width, height / 2);
+            ctxWaveform.strokeStyle = 'black';
+            ctxWaveform.lineWidth = 1;
+            ctxWaveform.stroke();
+        }
+
+        function drawOriginalSineWave() {
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            const period = 2 * Math.PI;
+            const step = period / width;
+
+            ctxWaveform.beginPath();
+            ctxWaveform.moveTo(0, height / 2);
+
+            for (let x = 0; x < width; x++) {
+                let t = x * step;
+                let y = Math.sin(t);
+                ctxWaveform.lineTo(x, height / 2 - y * (height / 4));
+            }
+
+            ctxWaveform.strokeStyle = 'red';
+            ctxWaveform.lineWidth = 2;
+            ctxWaveform.stroke();
+        }
+
+        function drawHarmonics(harmonics) {
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            const period = 2 * Math.PI;
+            const step = period / width;
+
+            for (let n = 1; n <= harmonics; n += 2) {
+                ctxWaveform.beginPath();
+                ctxWaveform.moveTo(0, height / 2);
+
+                for (let x = 0; x < width; x++) {
+                    let t = x * step;
+                    let y = (waveformType === 'square') ? (4 / Math.PI) * Math.sin(n * t) / n :
+                            (waveformType === 'triangle') ? (8 / Math.pow(Math.PI, 2)) * Math.pow(-1, (n - 1) / 2) * Math.sin(n * t) / Math.pow(n, 2) :
+                            (waveformType === 'sawtooth') ? (2 / Math.PI) * Math.pow(-1, n + 1) * Math.sin(n * t) / n : 0;
+                    ctxWaveform.lineTo(x, height / 2 - y * (height / 4));
+                }
+
+                ctxWaveform.strokeStyle = 'green';
+                ctxWaveform.lineWidth = 1;
+                ctxWaveform.stroke();
+            }
+        }
+
+        function drawSpectrum(harmonics) {
+            const labels = [];
+            const data = [];
+
+            for (let n = 1; n <= 20; n += 2) {
+                labels.push(n);
+                if (n <= harmonics) {
+                    if (waveformType === 'square') {
+                        data.push(4 / (Math.PI * n));
+                    } else if (waveformType === 'triangle') {
+                        data.push(8 / (Math.pow(Math.PI, 2) * Math.pow(n, 2)));
+                    } else if (waveformType === 'sawtooth') {
+                        data.push(2 / (Math.PI * n));
+                    }
+                } else {
+                    data.push(0);
+                }
+            }
+
+            if (spectrumChart) {
+                spectrumChart.destroy();
+            }
+
+            spectrumChart = new Chart(spectrumCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '振幅',
+                        data: data,
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        barThickness: 10 // バーの幅を狭くする
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1 // ラベルの間隔を固定
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        drawWaveform();
+    </script>
+</body>
+</html>

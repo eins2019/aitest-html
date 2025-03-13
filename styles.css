@@ -1,0 +1,57 @@
+body {
+    text-align: center;
+    font-family: Arial, sans-serif;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, 40px);
+    grid-template-rows: repeat(8, 40px);
+    gap: 2px;
+    margin: 20px auto;
+    width: 328px;
+}
+
+.cell {
+    width: 40px;
+    height: 40px;
+    background-color: green;
+    position: relative;
+}
+
+.cell.black::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: black;
+}
+
+.cell.white::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: white;
+}
+
+.cell.possible {
+    background-color: lightgreen;
+    cursor: pointer;
+}
+
+#thinking {
+    color: #666;
+    font-style: italic;
+    margin: 10px 0;
+}
+
+.hidden {
+    display: none;
+}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スミスチャート例</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    text { background-color: white; }
+    .controls { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+<div class="controls">
+  <label for="resistance">R: </label>
+  <input type="number" id="resistance" value="100" step="1">
+  <span>Ω</span>
+  <label for="reactance">+X: </label>
+  <input type="number" id="reactance" value="50" step="1">
+  <span>Ω</span>
+  <div>
+    <label for="z0">基準impedance (Z0): </label>
+    <input type="number" id="z0" value="50" step="1">
+    <span>Ω</span>
+  </div>
+  <div>
+    <span>正規化されたimpedance: </span><span id="normalizedZ">2.00+j1.00</span>
+  </div>
+  <div>
+    <span>正規化admittance: </span><span id="admittanceValue">?</span>
+  </div>
+
+  <div>
+    <span>正規化admittance: </span><span id="normalizedY">0.40-j0.20</span>
+  </div>
+  <div>
+    <label>
+      <input type="checkbox" id="toggleAdmittance" checked>
+      アドミタンスチャート表示
+    </label>
+  </div>
+
+</div>
+<svg id="smithChart" width="600" height="600"></svg>
+<script>
+// SVG のサイズ、中心、半径の定義
+const width = 600, height = 600;
+const center = { x: width / 2, y: height / 2 };
+const radius = 250;
+
+// 円外側にラベルを配置するための関数（offset: 余白ピクセル）
+function getLabelPosition(point, offset) {
+  const angle = Math.atan2(center.y - point.y, point.x - center.x);
+  return {
+    x: center.x + (radius + offset) * Math.cos(angle),
+    y: center.y - (radius + offset) * Math.sin(angle)
+  };
+}
+
+// 反射係数 Γ を計算する関数（インピーダンス用）
+//   z = r + jx, Γ = (z - 1) / (z + 1)
+function calcGamma(r, x) {
+  const denom = (r + 1) ** 2 + x ** 2;
+  const real = ((r - 1) * (r + 1) + x * x) / denom;
+  const imag = (2 * x) / denom;
+  return { real, imag };
+}
+
+// 反射係数 Γ を計算する関数（アドミタンス用）
+//   y = g + jb, Γ = (y - 1) / (y + 1)
+function calcGammaAdmittance(g, b) {
+  const denom = (g + 1) ** 2 + b ** 2;
+  const real = ((g - 1) * (g + 1) + b * b) / denom;
+  const imag = (-2 * b) / denom;
+  return { real: -real, imag: -imag }; // 左右反転
+}
+
+// 新規：左右反転しない admittance 用変換（点線の曲線上用）
+function calcGammaAdmittanceDashed(g, b) {
+  const denom = (g + 1) ** 2 + b ** 2;
+  const real = ((g - 1) * (g + 1) + b * b) / denom;
+  const imag = (-2 * b) / denom;
+  return { real, imag };
+}
+
+// (Γ.real, Γ.imag) を SVG 座標 (x, y) に変換する関数
+function scalePoint(gamma) {
+  return {
+    x: center.x + gamma.real * radius,
+    y: center.y - gamma.imag * radius
+  };
+}
+
+// アドミタンスチャート用の座標変換関数を追加
+function scalePointAdmittance(gamma) {
+  // 修正: x軸反転を解除し、インピーダンスと同じ変換とする
+  return {
+    x: center.x + gamma.real * radius,
+    y: center.y - gamma.imag * radius  
+  };
+}
+
+// インピーダンスを正規化する関数
+function normalizeImpedance(R, X, Z0) {
+  return { r: R / Z0, x: X / Z0 };
+}
+
+// インピーダンスをアドミタンスに変換する関数
+function impedanceToAdmittance(r, x) {
+  const denom = r * r + x * x;
+  return { g: r / denom, b: -x / denom };
+}
+
+// SVG 要素の取得
+const svg = d3.select("#smithChart");
+
+// 正規化した値をプロットする関数の修正
+const plotPoints = (r, x) => {
+  // インピーダンスは従来通り
+  const gammaZ = calcGamma(r, x);
+  const pointZ = scalePoint(gammaZ);
+  svg.selectAll(".plot-point-z").remove();
+  svg.append("circle")
+    .attr("class", "plot-point-z")
+    .attr("cx", pointZ.x)
+    .attr("cy", pointZ.y)
+    .attr("r", 5)
+    .attr("fill", "green");
+
+  // チェックボックスがオンの場合のみ、アドミタンス用のプロットを表示
+  if (document.getElementById("toggleAdmittance").checked) {
+    const { g, b } = impedanceToAdmittance(r, x);
+    const gammaY = calcGammaAdmittanceDashed(g, b);
+    const pointY = scalePointAdmittance(gammaY);
+    svg.selectAll(".plot-point-y").remove();
+    svg.append("text")
+      .attr("class", "plot-point-y")
+      .attr("x", pointY.x)
+      .attr("y", pointY.y)
+      .attr("text-anchor", "middle")
+      .attr("alignment-baseline", "central")
+      .attr("fill", "blue")
+      .text("▲");
+  }
+  else {
+    svg.selectAll(".plot-point-y").remove();
+  }
+};
+
+// 複素数を文字列に変換する関数
+function formatComplex(real, imag, precision = 2) {
+  const sign = imag >= 0 ? '+' : '-';
+  return `${real.toFixed(precision)}${sign}j${Math.abs(imag).toFixed(precision)}`;
+}
+
+// インピーダンスチャートの描画関数
+function drawImpedanceChart() {
+  // 外円（|Γ|=1）の描画
+  svg.append("circle")
+    .attr("cx", center.x)
+    .attr("cy", center.y)
+    .attr("r", radius)
+    .attr("stroke", "black")
+    .attr("fill", "none");
+
+  // 横軸中心線の描画
+  svg.append("line")
+    .attr("x1", center.x - radius)
+    .attr("y1", center.y)
+    .attr("x2", center.x + radius)
+    .attr("y2", center.y)
+    .attr("stroke", "black");
+
+  // 横軸の目盛り（抵抗値・正規化抵抗・admittance）の描画
+  const xTicks = [0, 0.2, 0.5, 1, 2, 4, Infinity];
+  xTicks.forEach(tick => {
+    const gamma = calcGamma(tick, 0);
+    const point = scalePoint(gamma);
+    svg.append("line")
+      .attr("x1", point.x)
+      .attr("y1", center.y - 5)
+      .attr("x2", point.x)
+      .attr("y2", center.y + 5)
+      .attr("stroke", "black");
+    
+    // 横軸は水平に配置するため、固定のy座標を使用
+    const labelX = point.x;
+    const labelY_black = center.y + 20;
+    const labelY_blue = center.y + 40;
+    
+    // 黒色ラベル（抵抗値）
+    svg.append("text")
+      .attr("x", labelX)
+      .attr("y", labelY_black)
+      .attr("text-anchor", "middle")
+      .attr("fill", "black")
+      .text(tick === Infinity ? "∞" : tick);
+    
+    // 青色ラベル（admittance値、逆数表示）
+    if (tick !== Infinity) {
+      const admittanceText = tick === 0 ? "∞" : (1 / tick).toFixed(1);
+      svg.append("text")
+        .attr("x", labelX)
+        .attr("y", labelY_blue)
+        .attr("text-anchor", "middle")
+        .attr("fill", "blue")
+        .text(admittanceText);
+    }
+  });
+
+  // 円周上の虚数軸目盛りの描画
+  const yTicks = [0.2, 0.5, 1, 2, 4];
+  yTicks.forEach(tick => {
+    // 正の虚数成分
+    const gammaPos = calcGamma(0, tick);
+    const pointPos = scalePoint(gammaPos);
+    const labelPosPos_black = getLabelPosition(pointPos, 20);
+    svg.append("text")
+      .attr("x", labelPosPos_black.x)
+      .attr("y", labelPosPos_black.y)
+      .attr("text-anchor", "start")
+      .attr("fill", "black")
+      .text(`j${tick}`);
+    const labelPosPos_blue = getLabelPosition(pointPos, 40);
+    svg.append("text")
+      .attr("x", labelPosPos_blue.x)
+      .attr("y", labelPosPos_blue.y)
+      .attr("text-anchor", "end")
+      .attr("fill", "blue")
+      // 修正: admittance 用の虚数値は逆数表示 (-j1/tick)
+      .text(`-j${(1 / tick).toFixed(1)}`);
+
+    // 負の虚数成分
+    const gammaNeg = calcGamma(0, -tick);
+    const pointNeg = scalePoint(gammaNeg);
+    const labelPosNeg_black = getLabelPosition(pointNeg, 20);
+    svg.append("text")
+      .attr("x", labelPosNeg_black.x)
+      .attr("y", labelPosNeg_black.y)
+      .attr("text-anchor", "start")
+      .attr("fill", "black")
+      .text(`-j${tick}`);
+    const labelPosNeg_blue = getLabelPosition(pointNeg, 40);
+    svg.append("text")
+      .attr("x", labelPosNeg_blue.x)
+      .attr("y", labelPosNeg_blue.y)
+      .attr("text-anchor", "end")
+      .attr("fill", "blue")
+      // 修正: admittance 用の虚数値は逆数表示 (j1/tick)
+      .text(`j${(1 / tick).toFixed(1)}`);
+  });
+
+  // 右端に∞ラベルの追加
+  svg.append("text")
+    .attr("x", center.x + radius + 20)
+    .attr("y", center.y + 5)
+    .attr("text-anchor", "start")
+    .text("∞");
+
+  // 定抵抗円（r = const）の描画
+  const rValues = [0, 0.2, 0.5, 1, 2, 5];
+  rValues.forEach(rVal => {
+    const points = [];
+    const xMin = -100, xMax = 100, step = 0.01;
+    for (let x = xMin; x <= xMax; x += step) {
+      points.push(calcGamma(rVal, x));
+    }
+    const pathData = d3.line()
+      .x(d => scalePoint(d).x)
+      .y(d => scalePoint(d).y)(points);
+    svg.append("path")
+      .attr("d", pathData)
+      .attr("stroke", "blue")
+      .attr("fill", "none");
+  });
+
+  // 定リアクタンス円（x = const）の描画
+  const xValues = [0.2, 0.5, 1, 2, 5];
+  xValues.forEach(xVal => {
+    {
+      const pointsPos = [];
+      const rMin = 0, rMax = 100, step = 0.01;
+      for (let r = rMin; r <= rMax; r += step) {
+        pointsPos.push(calcGamma(r, xVal));
+      }
+      const pathDataPos = d3.line()
+        .x(d => scalePoint(d).x)
+        .y(d => scalePoint(d).y)(pointsPos);
+      svg.append("path")
+        .attr("d", pathDataPos)
+        .attr("stroke", "red")
+        .attr("fill", "none");
+    }
+    {
+      const pointsNeg = [];
+      const rMin = 0, rMax = 100, step = 0.01;
+      for (let r = rMin; r <= rMax; r += step) {
+        pointsNeg.push(calcGamma(r, -xVal));
+      }
+      const pathDataNeg = d3.line()
+        .x(d => scalePoint(d).x)
+        .y(d => scalePoint(d).y)(pointsNeg);
+      svg.append("path")
+        .attr("d", pathDataNeg)
+        .attr("stroke", "red")
+        .attr("fill", "none");
+    }
+  });
+
+  // admittance用グリッドを描画するグループを作成
+  const admittanceGrid = svg.append("g")
+    .attr("id", "admittanceGrid");
+  
+  // 定コンダクタンス円（g = const）の描画（admittanceGrid内へ）
+  const gValues = [0.2, 0.5, 1, 2, 5];
+  gValues.forEach(gVal => {
+    const points = [];
+    for (let b = -10; b <= 10; b += 0.01) {
+      points.push(calcGammaAdmittance(gVal, b));
+    }
+    const pathData = d3.line()
+      .x(d => scalePoint(d).x)
+      .y(d => scalePoint(d).y)
+      .defined(d => !isNaN(d.real) && !isNaN(d.imag) && (d.real * d.real + d.imag * d.imag <= 1.0001))
+      (points);
+    admittanceGrid.append("path")
+      .attr("d", pathData)
+      .attr("stroke", "purple")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "5,5")
+      .attr("fill", "none")
+      .style("opacity", 0.7);
+  });
+  
+  // 定サセプタンス円（b = const）の描画（admittanceGrid内へ）
+  const bValues = [0.2, 0.5, 1, 2, 5];
+  bValues.forEach(bVal => {
+    {
+      const pointsPos = [];
+      for (let g = 0; g <= 10; g += 0.01) {
+        pointsPos.push(calcGammaAdmittance(g, bVal));
+      }
+      const pathDataPos = d3.line()
+        .x(d => scalePoint(d).x)
+        .y(d => scalePoint(d).y)(pointsPos);
+      admittanceGrid.append("path")
+        .attr("d", pathDataPos)
+        .attr("stroke", "orange")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "5,5")
+        .attr("fill", "none")
+        .style("opacity", 0.7);
+    }
+    {
+      const pointsNeg = [];
+      for (let g = 0; g <= 10; g += 0.01) {
+        pointsNeg.push(calcGammaAdmittance(g, -bVal));
+      }
+      const pathDataNeg = d3.line()
+        .x(d => scalePoint(d).x)
+        .y(d => scalePoint(d).y)
+        .defined(d => !isNaN(d.real) && !isNaN(d.imag) && (d.real * d.real + d.imag * d.imag <= 1.0001))
+        (pointsNeg);
+      admittanceGrid.append("path")
+        .attr("d", pathDataNeg)
+        .attr("stroke", "orange")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "5,5")
+        .attr("fill", "none")
+        .style("opacity", 0.7);
+    }
+  
+  });
+}
+
+// チャートの初期化
+drawImpedanceChart();
+
+// 初期プロット用の値
+const initialR = 100;
+const initialX = 50;
+const initialZ0 = 50;
+
+const { r: initialNormalizedR, x: initialNormalizedX } = normalizeImpedance(initialR, initialX, initialZ0);
+const initialY = impedanceToAdmittance(initialR, initialX);
+const { g: initialNormalizedG, b: initialNormalizedB } = impedanceToAdmittance(initialNormalizedR, initialNormalizedX);
+
+document.getElementById("admittanceValue").textContent = formatComplex(initialY.g, initialY.b, 3);
+// ● の印を正規化インピーダンス値の前に、▲ の印を正規化アドミタンス値の前に追加
+document.getElementById("normalizedZ").textContent = "●" + formatComplex(initialNormalizedR, initialNormalizedX);
+document.getElementById("normalizedY").textContent = "▲" + formatComplex(initialNormalizedG, initialNormalizedB);
+
+plotPoints(initialNormalizedR, initialNormalizedX);
+
+// 入力値変更時にプロット更新
+const updatePlot = () => {
+  const R = parseFloat(document.getElementById("resistance").value);
+  const X = parseFloat(document.getElementById("reactance").value);
+  const Z0 = parseFloat(document.getElementById("z0").value);
+
+  const Y = impedanceToAdmittance(R, X);
+  const { r, x } = normalizeImpedance(R, X, Z0);
+  const { g, b } = impedanceToAdmittance(r, x);
+
+  document.getElementById("admittanceValue").textContent = formatComplex(Y.g, Y.b, 3);
+  // ● と ▲ をそれぞれ正規化インピーダンス・アドミタンス値の前に付与
+  document.getElementById("normalizedZ").textContent = "●" + formatComplex(r, x);
+  document.getElementById("normalizedY").textContent = "▲" + formatComplex(g, b);
+  
+  // admittanceチャートグリッドの表示／非表示を切替
+  document.getElementById("admittanceGrid").style.display =
+    document.getElementById("toggleAdmittance").checked ? "block" : "none";
+  
+  plotPoints(r, x);
+};
+
+document.getElementById("resistance").addEventListener("input", updatePlot);
+document.getElementById("reactance").addEventListener("input", updatePlot);
+document.getElementById("z0").addEventListener("input", updatePlot);
+// 既存の入力イベントに加え、チェックボックスの変更時も更新
+document.getElementById("toggleAdmittance").addEventListener("change", updatePlot);
+</script>
+</body>
+</html>
